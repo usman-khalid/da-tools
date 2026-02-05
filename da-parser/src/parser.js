@@ -176,6 +176,26 @@ function removeComments(node) {
   return node;
 }
 
+/**
+ * Strip comment attributes from images.
+ * This only handles image commentThreadId attributes which are stored as node attrs.
+ */
+function stripImageCommentMarks(node) {
+  if (!node || !node.children) return node;
+  node.children.forEach((child) => {
+    if (child.type === 'img' && child.attributes?.['data-comment-thread']) {
+      delete child.attributes['data-comment-thread'];
+      if (child.attributes.class) {
+        child.attributes.class = child.attributes.class.replace('da-comment-highlight', '').trim();
+        if (child.attributes.class === '') delete child.attributes.class;
+      }
+    } else {
+      stripImageCommentMarks(child);
+    }
+  });
+  return node;
+}
+
 export const EMPTY_DOC = '<body><header></header><main><div></div></main><footer></footer></body>';
 
 function convertLocTags(html) {
@@ -669,8 +689,8 @@ export function doc2aem(ydoc) {
   const nodes = DOMSerializer.nodesFromSchema(schema);
   const marks = DOMSerializer.marksFromSchema(schema);
 
-  // Remove contextHighlightingMark so it doesn't render any wrapper
   delete marks.contextHighlightingMark;
+  delete marks.comment;
 
   const serializer = new DOMSerializer(nodes, marks);
   serializer.serializeFragment(json.content, { document: new Proxy({}, handler3) });
@@ -713,7 +733,8 @@ export function doc2aem(ydoc) {
     }
   });
 
-  // convert sections
+  stripImageCommentMarks(fragment);
+
   const section = { type: 'div', attributes: {}, children: [] };
   const sections = [...fragment.children].reduce((acc, child) => {
     if (child.type === 'hr') {
